@@ -11,6 +11,9 @@ export interface GameState {
   gameOver: boolean;
   timeLeft: number;
   startWord: string;
+  missedWord?: string;
+  missedWordDefinition?: string;
+  isChainComplete?: boolean;
 }
 
 export interface GameHistory {
@@ -19,6 +22,9 @@ export interface GameHistory {
   startWord: string;
   score: number;
   chain: WordChain[];
+  missedWord?: string;
+  missedWordDefinition?: string;
+  isChainComplete?: boolean;
 }
 
 export type Page = 'game' | 'history' | 'how-to-play' | 'privacy' | 'contact';
