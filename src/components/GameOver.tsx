@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { Share2, Trophy, XCircle, CheckCircle2 } from 'lucide-react';
+import { WordDefinitions } from './WordDefinitions';
 import type { WordChain } from '../types';
 
 interface GameOverProps {
@@ -56,23 +57,34 @@ export function GameOver({
           </div>
           <p className="text-xl font-semibold text-red-800 dark:text-red-100 mb-2">{missedWord}</p>
           {missedWordDefinition && missedWordDefinition !== 'Unable to fetch definition' && (
-            <p className="text-sm text-red-600 dark:text-red-200/80">{missedWordDefinition}</p>
+            <WordDefinitions 
+              definitions={[missedWordDefinition]} 
+              variant="game-over" 
+            />
           )}
         </div>
       )}
 
       {isChainComplete && (
         <div className="mb-6 p-4 rounded-lg bg-emerald-50 dark:bg-emerald-500/10">
-          <p className="text-emerald-700 dark:text-emerald-200">Congratulations! You've found all possible synonyms in this chain!</p>
+          <p className="text-emerald-700 dark:text-emerald-200">
+            Congratulations! You've found all possible synonyms in this chain!
+          </p>
         </div>
       )}
 
       <div className="space-y-4 mb-6">
-        <h3 className="text-lg font-semibold text-emerald-800 dark:text-emerald-100">Your Word Chain:</h3>
+        <h3 className="text-lg font-semibold text-emerald-800 dark:text-emerald-100">
+          Your Word Chain:
+        </h3>
         {chain.map((item, index) => (
           <div key={index} className="p-3 rounded bg-emerald-50 dark:bg-emerald-900/20">
-            <p className="font-medium text-emerald-800 dark:text-emerald-100">{item.word}</p>
-            <p className="text-sm text-emerald-600 dark:text-emerald-100/70">{item.definition}</p>
+            <p className="font-medium text-emerald-800 dark:text-emerald-100 mb-2">
+              {item.word}
+            </p>
+            <WordDefinitions 
+              definitions={item.definitions || [item.definition]} 
+            />
           </div>
         ))}
       </div>
