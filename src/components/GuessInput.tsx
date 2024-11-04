@@ -9,13 +9,28 @@ interface GuessInputProps {
 
 export function GuessInput({ onGuess, disabled = false }: GuessInputProps) {
   const [guess, setGuess] = useState('');
+  const [isMobile, setIsMobile] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!disabled && inputRef.current) {
+    // Check if device is mobile
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+
+    // Initial check
+    checkMobile();
+
+    // Add resize listener
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  useEffect(() => {
+    if (!disabled && inputRef.current && !isMobile) {
       inputRef.current.focus();
     }
-  }, [disabled]);
+  }, [disabled, isMobile]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,22 +42,34 @@ export function GuessInput({ onGuess, disabled = false }: GuessInputProps) {
 
   const handleKeyPress = (key: string) => {
     setGuess(prev => prev + key);
-    if (inputRef.current) {
+    if (inputRef.current && !isMobile) {
       inputRef.current.focus();
     }
   };
 
   const handleBackspace = () => {
     setGuess(prev => prev.slice(0, -1));
-    if (inputRef.current) {
+    if (inputRef.current && !isMobile) {
       inputRef.current.focus();
     }
   };
 
   const handleClear = () => {
     setGuess('');
-    if (inputRef.current) {
+    if (inputRef.current && !isMobile) {
       inputRef.current.focus();
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!isMobile) {
+      setGuess(e.target.value);
+    }
+  };
+
+  const handleInputFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    if (isMobile) {
+      e.target.blur();
     }
   };
 
@@ -53,8 +80,10 @@ export function GuessInput({ onGuess, disabled = false }: GuessInputProps) {
           ref={inputRef}
           type="text"
           value={guess}
-          onChange={(e) => setGuess(e.target.value)}
+          onChange={handleInputChange}
+          onFocus={handleInputFocus}
           disabled={disabled}
+          readOnly={isMobile}
           placeholder="Enter your guess..."
           className="flex-1 px-4 py-2 text-emerald-800 dark:text-emerald-100 bg-white dark:bg-emerald-900/20 rounded-lg border border-emerald-300 dark:border-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 placeholder-emerald-400 dark:placeholder-emerald-600"
         />
