@@ -11,102 +11,97 @@ export interface DictionaryResponse {
   }[];
 }
 
-const isPlural = (word: string): boolean => {
-  return word.endsWith('s') && !word.endsWith('ss') && !word.endsWith('us');
-};
-
-const getSingular = (word: string): string => {
-  if (!isPlural(word)) return word;
-  return word.endsWith('ies') ? word.slice(0, -3) + 'y' : word.slice(0, -1);
-};
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export const fetchWordData = async (word: string) => {
-  try {
-    // Normalize the word to handle multi-word cases
-    const normalizedWord = word.toLowerCase().trim();
-    
-    // Get dictionary definition
-    const definitionResponse = await fetch(`${DICTIONARY_API}/${encodeURIComponent(normalizedWord)}`);
-    let definition = 'Definition not available';
-    
-    if (definitionResponse.ok) {
-      const definitionData: DictionaryResponse[] = await definitionResponse.json();
-      definition = definitionData[0]?.meanings[0]?.definitions[0]?.definition || definition;
-    }
+  if (!word) {
+    throw new Error('Word parameter is required');
+  }
 
-    // Get synonyms with retry logic
-    let synonyms: string[] = [];
+  const normalizedWord = word.toLowerCase().trim();
+  let definition = 'Definition not available';
+  let synonyms: string[] = [];
+  
+  try {
+    // Get dictionary definition first
+    let definitionResponse = null;
     let retryCount = 0;
     const maxRetries = 3;
 
-    while (retryCount < maxRetries && synonyms.length === 0) {
+    while (retryCount < maxRetries && !definitionResponse) {
       try {
-        const synonymResponse = await fetch(
-          `${DATAMUSE_API}?rel_syn=${encodeURIComponent(normalizedWord)}&max=15`
-        );
+        definitionResponse = await fetch(`${DICTIONARY_API}/${encodeURIComponent(normalizedWord)}`);
         
-        if (synonymResponse.ok) {
-          const synonymData: { word: string; score: number }[] = await synonymResponse.json();
-          
-          // Filter synonyms
-          synonyms = synonymData
-            .filter(item => item.score > 1000) // Filter out low-quality matches
-            .map(item => item.word)
-            .filter(syn => {
-              const normalizedSyn = syn.toLowerCase();
-              const synSingular = getSingular(normalizedSyn);
-              const wordSingular = getSingular(normalizedWord);
-              
-              return (
-                normalizedSyn !== normalizedWord && // Remove self-references
-                synSingular !== wordSingular && // Remove plural/singular variations
-                !normalizedSyn.includes(' ') && // Remove multi-word synonyms
-                normalizedSyn.length > 2 // Remove very short words
-              );
-            });
+        if (definitionResponse.ok) {
+          const definitionData: DictionaryResponse[] = await definitionResponse.json();
+          definition = definitionData[0]?.meanings[0]?.definitions[0]?.definition || definition;
+        } else if (definitionResponse.status === 404) {
+          console.log(`No definition found for word: ${normalizedWord}`);
+          break;
+        } else {
+          throw new Error(`Dictionary API returned status: ${definitionResponse.status}`);
         }
-        
-        break;
       } catch (error) {
         retryCount++;
-        await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // Exponential backoff
-      }
-    }
-
-    // If we still don't have synonyms, try related words as fallback
-    if (synonyms.length === 0) {
-      try {
-        const relatedResponse = await fetch(
-          `${DATAMUSE_API}?rel_trg=${encodeURIComponent(normalizedWord)}&max=10`
-        );
-        
-        if (relatedResponse.ok) {
-          const relatedData: { word: string; score: number }[] = await relatedResponse.json();
-          synonyms = relatedData
-            .filter(item => item.score > 500)
-            .map(item => item.word)
-            .filter(syn => {
-              const normalizedSyn = syn.toLowerCase();
-              const synSingular = getSingular(normalizedSyn);
-              const wordSingular = getSingular(normalizedWord);
-              
-              return (
-                normalizedSyn !== normalizedWord &&
-                synSingular !== wordSingular &&
-                !normalizedSyn.includes(' ') &&
-                normalizedSyn.length > 2
-              );
-            });
+        if (retryCount === maxRetries) {
+          console.error('Failed to fetch definition after retries:', error);
+        } else {
+          await delay(1000 * retryCount);
         }
-      } catch (error) {
-        console.warn('Failed to fetch related words as fallback');
       }
     }
 
-    // Ensure we have at least some synonyms
+    // Primary synonym sources with different relationships
+    const endpoints = [
+      // Direct synonyms (highest quality)
+      `${DATAMUSE_API}?rel_syn=${encodeURIComponent(normalizedWord)}&max=15`,
+      // Similar meaning words
+      `${DATAMUSE_API}?ml=${encodeURIComponent(`similar to ${normalizedWord}`)}&max=10`,
+      // Words that appear in similar contexts
+      `${DATAMUSE_API}?rel_trg=${encodeURIComponent(normalizedWord)}&max=10`
+    ];
+
+    const uniqueSynonyms = new Set<string>();
+    
+    await Promise.all(endpoints.map(async (endpoint) => {
+      try {
+        const response = await fetch(endpoint);
+        if (!response.ok) return;
+        
+        const data: { word: string; score: number; tags?: string[] }[] = await response.json();
+        
+        data
+          .filter(item => {
+            // Adjust scoring based on endpoint type
+            const minScore = endpoint.includes('rel_syn') ? 1000 : // Higher threshold for direct synonyms
+                           endpoint.includes('ml') ? 2000 : // Higher for meaning-like
+                           500; // Lower for context-related
+            
+            return (
+              item.score > minScore &&
+              // Basic word validation
+              /^[a-z]+$/i.test(item.word) && // Only pure alphabetical words
+              item.word.length > 2 && // No very short words
+              item.word.toLowerCase() !== normalizedWord && // No self-matches
+              !item.tags?.includes('prop') && // Filter out proper nouns if tagged
+              !item.tags?.includes('n_prop') // Filter out proper noun tags
+            );
+          })
+          .forEach(item => {
+            uniqueSynonyms.add(item.word.toLowerCase());
+          });
+      } catch (error) {
+        console.error(`Failed to fetch from endpoint ${endpoint}:`, error);
+      }
+    }));
+
+    synonyms = Array.from(uniqueSynonyms);
+
     if (synonyms.length === 0) {
-      throw new Error('No synonyms found for this word');
+      throw new Error(`No valid synonyms found for: ${normalizedWord}`);
     }
+
+    console.log(`Found ${synonyms.length} synonyms for ${normalizedWord}:`, synonyms);
 
     return {
       word: normalizedWord,
@@ -114,9 +109,11 @@ export const fetchWordData = async (word: string) => {
       synonyms
     };
   } catch (error) {
-    console.error('Error fetching word data:', error);
+    console.error('Error in fetchWordData:', error);
     throw new Error(
-      error instanceof Error ? error.message : 'Failed to fetch word data'
+      error instanceof Error 
+        ? `Failed to fetch word data: ${error.message}`
+        : 'Failed to fetch word data: Unknown error'
     );
   }
 };
