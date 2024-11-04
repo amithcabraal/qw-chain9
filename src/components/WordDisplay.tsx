@@ -38,7 +38,7 @@ export function WordDisplay({ currentWord, nextWordHint, error }: WordDisplayPro
           <div className="flex items-center gap-2 mb-4">
             <ArrowDown className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
             <h3 className="text-xl font-semibold text-emerald-800 dark:text-emerald-100">
-              Find a synonym for {currentWord.word}:
+              Find a word similar to "{currentWord.word}":
             </h3>
           </div>
           <p className="text-3xl font-sans text-emerald-800 dark:text-emerald-100 tracking-[0.15em] leading-relaxed">
@@ -51,7 +51,7 @@ export function WordDisplay({ currentWord, nextWordHint, error }: WordDisplayPro
       <AnimatePresence initial={false}>
         {error && (
           <motion.div
-            key={error} // Remove Date.now() to prevent continuous re-renders
+            key={error}
             initial={{ opacity: 0, scale: 0.95, y: -10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
