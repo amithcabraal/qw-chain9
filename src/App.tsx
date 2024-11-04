@@ -32,6 +32,11 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [missedWordDefinition, setMissedWordDefinition] = useState<string>('');
 
+  const getCurrentWord = useCallback(() => {
+    if (gameState.currentChain.length === 0) return null;
+    return gameState.currentChain[gameState.currentChain.length - 1];
+  }, [gameState.currentChain]);
+
   useEffect(() => {
     localStorage.setItem('darkMode', JSON.stringify(darkMode));
   }, [darkMode]);
@@ -42,10 +47,12 @@ function App() {
       saveGameToHistory({
         startWord: gameState.startWord,
         score: gameState.score,
-        chain: gameState.currentChain
+        chain: gameState.currentChain,
+        missedWord: gameState.nextWordHint,
+        missedWordDefinition
       });
     }
-  }, [gameState.gameOver, gameState.currentChain, gameState.score, gameState.startWord]);
+  }, [gameState.gameOver, gameState.currentChain, gameState.score, gameState.startWord, gameState.nextWordHint, missedWordDefinition]);
 
   const selectNextWord = (synonyms: string[], usedWords: Set<string>): string => {
     const availableSynonyms = synonyms.filter(
@@ -55,29 +62,30 @@ function App() {
     return availableSynonyms[Math.floor(Math.random() * availableSynonyms.length)];
   };
 
-  const initializeGame = useCallback(async () => {
+  const initializeGame = useCallback(async (startWord?: string) => {
     setLoading(true);
     setError(null);
     setMissedWordDefinition('');
     try {
-      const wordData = await fetchWordData(gameState.startWord);
-      const usedWords = new Set([gameState.startWord.toLowerCase()]);
+      const initialWord = startWord || STARTER_WORDS[Math.floor(Math.random() * STARTER_WORDS.length)];
+      const wordData = await fetchWordData(initialWord);
+      const usedWords = new Set([initialWord.toLowerCase()]);
       const nextWord = selectNextWord(wordData.synonyms, usedWords);
       
-      setGameState(prev => ({
-        ...prev,
+      setGameState({
         currentChain: [wordData],
         nextWordHint: nextWord,
         gameOver: false,
         timeLeft: 30,
-        score: 0
-      }));
+        score: 0,
+        startWord: initialWord
+      });
     } catch (err) {
       setError('Failed to start game. Please try again.');
     } finally {
       setLoading(false);
     }
-  }, [gameState.startWord]);
+  }, []);
 
   useEffect(() => {
     initializeGame();
@@ -148,25 +156,6 @@ function App() {
     }
   };
 
-  const resetGame = useCallback(() => {
-    const newStartWord = STARTER_WORDS[Math.floor(Math.random() * STARTER_WORDS.length)];
-    setGameState(prev => ({
-      ...prev,
-      startWord: newStartWord,
-      currentChain: [],
-      nextWordHint: '',
-      score: 0,
-      gameOver: false,
-      timeLeft: 30
-    }));
-    initializeGame();
-  }, [initializeGame]);
-
-  const getCurrentWord = () => {
-    if (gameState.currentChain.length === 0) return null;
-    return gameState.currentChain[gameState.currentChain.length - 1];
-  };
-
   return (
     <div className={darkMode ? 'dark' : ''}>
       <div className="min-h-screen bg-emerald-50 dark:bg-emerald-950 transition-colors">
@@ -220,28 +209,28 @@ function App() {
                 <GameOver 
                   score={gameState.score}
                   chain={gameState.currentChain}
-                  onRestart={resetGame}
+                  onRestart={() => initializeGame()}
                   startWord={gameState.startWord}
                   missedWord={gameState.nextWordHint}
                   missedWordDefinition={missedWordDefinition}
                 />
               )
             ) : currentPage === 'history' ? (
-              <GameHistory />
+              <GameHistory onReplay={initializeGame} onNavigate={setCurrentPage} />
             ) : currentPage === 'how-to-play' ? (
               <StaticPage title="How to Play">
                 <p className="text-emerald-800 dark:text-emerald-100">QuizWordz Chain is a word association game where you build a chain of related words:</p>
                 <ol className="list-decimal pl-6 space-y-2 text-emerald-800 dark:text-emerald-100">
                   <li>Start with a given word</li>
-                  <li>Find a synonym for that word using the hint (word with vowels removed)</li>
-                  <li>Continue building the chain with new synonyms</li>
+                  <li>Find a word similar to the current word using the hint (word with vowels removed)</li>
+                  <li>Continue building the chain with new similar words</li>
                   <li>Score points based on your speed and chain length</li>
                 </ol>
                 <p className="mt-4 text-emerald-800 dark:text-emerald-100">The game ends when you either:</p>
                 <ul className="list-disc pl-6 space-y-2 text-emerald-800 dark:text-emerald-100">
                   <li>Run out of time (30 seconds per word)</li>
                   <li>Make an incorrect guess</li>
-                  <li>No more valid synonyms are available</li>
+                  <li>No more valid similar words are available</li>
                 </ul>
               </StaticPage>
             ) : currentPage === 'contact' ? (
