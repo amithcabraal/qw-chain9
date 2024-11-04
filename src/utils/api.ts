@@ -19,7 +19,7 @@ export const fetchWordData = async (word: string) => {
   }
 
   const normalizedWord = word.toLowerCase().trim();
-  let definition = 'Definition not available';
+  let definitions: string[] = [];
   let synonyms: string[] = [];
   
   try {
@@ -34,9 +34,23 @@ export const fetchWordData = async (word: string) => {
         
         if (definitionResponse.ok) {
           const definitionData: DictionaryResponse[] = await definitionResponse.json();
-          definition = definitionData[0]?.meanings[0]?.definitions[0]?.definition || definition;
+          
+          // Collect all unique definitions across different meanings
+          const allDefinitions = new Set<string>();
+          definitionData[0]?.meanings.forEach(meaning => {
+            meaning.definitions.forEach(def => {
+              allDefinitions.add(def.definition);
+            });
+          });
+          
+          definitions = Array.from(allDefinitions);
+          
+          if (definitions.length === 0) {
+            definitions = ['Definition not available'];
+          }
         } else if (definitionResponse.status === 404) {
           console.log(`No definition found for word: ${normalizedWord}`);
+          definitions = ['Definition not available'];
           break;
         } else {
           throw new Error(`Dictionary API returned status: ${definitionResponse.status}`);
@@ -45,6 +59,7 @@ export const fetchWordData = async (word: string) => {
         retryCount++;
         if (retryCount === maxRetries) {
           console.error('Failed to fetch definition after retries:', error);
+          definitions = ['Definition not available'];
         } else {
           await delay(1000 * retryCount);
         }
@@ -105,7 +120,8 @@ export const fetchWordData = async (word: string) => {
 
     return {
       word: normalizedWord,
-      definition,
+      definition: definitions[0], // Keep for backward compatibility
+      definitions: definitions,
       synonyms
     };
   } catch (error) {
