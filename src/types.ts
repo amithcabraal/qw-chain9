@@ -1,6 +1,7 @@
 export interface WordChain {
   word: string;
   definition: string;
+  definitions?: string[];
   synonyms: string[];
 }
 
