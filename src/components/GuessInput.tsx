@@ -56,7 +56,6 @@ export function GuessInput({ onGuess, disabled = false }: GuessInputProps) {
           onChange={(e) => setGuess(e.target.value)}
           disabled={disabled}
           placeholder="Enter your guess..."
-          readOnly
           className="flex-1 px-4 py-2 text-emerald-800 dark:text-emerald-100 bg-white dark:bg-emerald-900/20 rounded-lg border border-emerald-300 dark:border-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 placeholder-emerald-400 dark:placeholder-emerald-600"
         />
         <button
